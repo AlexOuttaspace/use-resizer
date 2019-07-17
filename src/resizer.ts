@@ -23,6 +23,9 @@ interface TUseResizerOptions {
   size: TElementSize
 }
 
+/*
+  This function prevents text selection which occurs when user drags cursor around the document.
+*/
 const blockTextSelection = (e: React.PointerEvent<HTMLElement> | PointerEvent): void =>{
   e.stopPropagation();
   e.preventDefault();
