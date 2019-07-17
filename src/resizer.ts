@@ -90,12 +90,12 @@ export const useResizer = (options: TUseResizerOptions): HandlePropsMap => {
     })
   }, [options])
 
-  const handlePropsMap = useMemo<HandlePropsMap>(() => allowedResizeDirections.reduce((acc, direction) => {
+  const handlePropsMap = useMemo(() => allowedResizeDirections.reduce<HandlePropsMap>((acc, direction) => {
     return {
       ...acc,
       [direction]: createHandlePropsForDirection(direction, createPointerDownHandler)
     }
-  }, {} as any), [createPointerDownHandler])
+  }, {} as HandlePropsMap), [createPointerDownHandler])
 
   return handlePropsMap
 }
