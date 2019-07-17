@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, useRef } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
 export type ResizeDirection = 'top' | 'topRight' | 'right' | 'bottomRight' | 'bottom' | 'bottomLeft' | 'left' | 'topLeft'
 type TPointCoords = { x: number, y: number }
@@ -40,12 +40,47 @@ const getEventCoordinates = (
   y: clientY
 })
 
-const calculateNewSize = (previousSize: TElementSize, displaysmentVector: TPointCoords, displaysmentDirection: ResizeDirection): TElementSize => {
+const sizeReducer = (previousSize: TElementSize, displaysmentVector: TPointCoords, displaysmentDirection: ResizeDirection): TElementSize => {
   switch (displaysmentDirection) {
+    case 'top':
+      return {
+        width: previousSize.width,
+        height: previousSize.height - displaysmentVector.y
+      }
+    case 'topRight':
+      return {
+        width: previousSize.width + displaysmentVector.x,
+        height: previousSize.height - displaysmentVector.y
+      }
+    case 'right':
+      return {
+        width: previousSize.width + displaysmentVector.x,
+        height: previousSize.height
+      }
     case 'bottomRight':
       return {
         width: previousSize.width + displaysmentVector.x,
         height: previousSize.height + displaysmentVector.y
+      }
+    case 'bottom':
+      return {
+        width: previousSize.width,
+        height: previousSize.height + displaysmentVector.y
+      }
+    case 'bottomLeft':
+      return {
+        width: previousSize.width - displaysmentVector.x,
+        height: previousSize.height + displaysmentVector.y
+      }
+    case 'left':
+      return {
+        width: previousSize.width - displaysmentVector.x,
+        height: previousSize.height
+      }
+    case 'topLeft':
+      return {
+        width: previousSize.width - displaysmentVector.x,
+        height: previousSize.height - displaysmentVector.y
       }
     default:
       return previousSize
@@ -72,8 +107,7 @@ const createMoveHandler = (
       y: currentPointerCoords.y - initialCoords.y
     }
 
-    const newSize = calculateNewSize(size, displaysmentVector, resizeDirection)
-    console.log(newSize)
+    const newSize = sizeReducer(size, displaysmentVector, resizeDirection)
     onResize && onResize(newSize)
   }
 }
@@ -81,9 +115,7 @@ const createMoveHandler = (
 
 export const useResizer = (useResizerOptions: TUseResizerOptions): HandlePropsMap => {
   const [memoized, setNewMemoized] = useState(false)
-  const f = Math.random()
   const createPointerDownHandler = useCallback<TCreatePointerDownHandler>((resizeDirection) => {
-    console.log(f)
     return (event) => {
       blockTextSelection(event)
   
@@ -103,7 +135,16 @@ export const useResizer = (useResizerOptions: TUseResizerOptions): HandlePropsMa
         once: true /* We only need this to fire once per interaction */
       })
     }
-    // only update handlers when resize event stops
+    /*
+      We change `memoized` state each time interaction ends (pointerup event),
+      so that we only create new event handlers when interaction is over.
+      
+      This is required for performance, because otherwise each time we change width or height
+      of the element (which during interaction can happen about 60 time per second) we create new
+      onPointerDown event handlers and reattach them to element. These event handlers are useless
+      until the intraction is over. Profiler shows about 50% performance boost, so although solution is
+      a bit ugly, it stays here until I find something better.
+    */
   }, [memoized]) // eslint-disable-line
 
   const handlePropsMap = useMemo(() => allowedResizeDirections.reduce<HandlePropsMap>((acc, direction) => {
