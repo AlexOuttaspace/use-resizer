@@ -2,8 +2,8 @@ import { useCallback, useMemo } from 'react'
 
 export type ResizeDirection = 'top' | 'topRight' | 'right' | 'bottomRight' | 'bottom' | 'bottomLeft' | 'left' | 'topLeft'
 type TPointCoords = { x: number, y: number }
-type TCreatePointerDownHandler = (resizeDirection: ResizeDirection) => TOnPointerDown
 type TOnPointerDown = (event: React.PointerEvent<HTMLElement>) => void
+type TCreatePointerDownHandler = (resizeDirection: ResizeDirection) => TOnPointerDown
 
 type HandleProps = {
   onPointerDown: TOnPointerDown
@@ -56,7 +56,6 @@ const calculateNewSize = (previousSize: TElementSize, displaysmentVector: TPoint
   }
 }
 
-
 const createMoveHandler = (
   initialCoords: TPointCoords,
   resizeDirection: ResizeDirection,
@@ -105,7 +104,6 @@ export const useResizer = (options: TUseResizerOptions): HandlePropsMap => {
      once the pointer is up
     */
     window.addEventListener('pointerup', () => {
-      console.log('STOP')
       window.removeEventListener('pointermove', moveHandler, false)
     }, {
       capture: false,
@@ -114,7 +112,7 @@ export const useResizer = (options: TUseResizerOptions): HandlePropsMap => {
       */
       once: true
     })
-  }, [options])
+  }, [options.size.width, options.size.height, options.onResize]) // eslint-disable-line
 
   const handlePropsMap = useMemo(() => allowedResizeDirections.reduce<HandlePropsMap>((acc, direction) => {
     return {

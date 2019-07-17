@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import './App.css';
 import { useResizer, ResizeDirection } from './resizer'
 
@@ -35,8 +35,10 @@ const getHandleStyle = (direction: ResizeDirection): React.CSSProperties => {
 const App: React.FC = () => {
   const [size, setSize] = useState({width: 100, height: 100})
 
+  const onResize = useCallback(({ width, height}) => setSize({ width, height }), [])
+
   const { top, left, right, bottom, topRight, topLeft, bottomLeft, bottomRight } = useResizer({
-    onResize: ({ width, height}) => setSize({ width, height }),
+    onResize,
     size
   })
 
