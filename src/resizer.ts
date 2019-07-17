@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState, useRef } from 'react'
 
 export type ResizeDirection = 'top' | 'topRight' | 'right' | 'bottomRight' | 'bottom' | 'bottomLeft' | 'left' | 'topLeft'
 type TPointCoords = { x: number, y: number }
@@ -33,15 +33,6 @@ const blockTextSelection = (event: React.PointerEvent<HTMLElement> | PointerEven
 
 const allowedResizeDirections: ResizeDirection[] = ['top' , 'topRight' , 'right' , 'bottomRight' , 'bottom' , 'bottomLeft' , 'left' , 'topLeft']
 
-const createHandlePropsForDirection = (
-  direction: ResizeDirection,
-  createPointerDown: TCreatePointerDownHandler
-) => {
-  return {
-    onPointerDown: createPointerDown(direction)
-  }
-}
-
 const getEventCoordinates = (
   { clientX, clientY }: PointerEvent
 ): TPointCoords => ({
@@ -51,6 +42,11 @@ const getEventCoordinates = (
 
 const calculateNewSize = (previousSize: TElementSize, displaysmentVector: TPointCoords, displaysmentDirection: ResizeDirection): TElementSize => {
   switch (displaysmentDirection) {
+    case 'bottomRight':
+      return {
+        width: previousSize.width + displaysmentVector.x,
+        height: previousSize.height + displaysmentVector.y
+      }
     default:
       return previousSize
   }
@@ -77,49 +73,47 @@ const createMoveHandler = (
     }
 
     const newSize = calculateNewSize(size, displaysmentVector, resizeDirection)
-
+    console.log(newSize)
     onResize && onResize(newSize)
   }
 }
 
-export const useResizer = (options: TUseResizerOptions): HandlePropsMap => {
 
-  const createPointerDownHandler = useCallback<TCreatePointerDownHandler>((resizeDirection) => (event) => {
-    blockTextSelection(event)
-
-    const initialCoords: TPointCoords = getEventCoordinates(event.nativeEvent)
-
-    /*
-      Use closure that preserves inital coords of interaction
-    */
-    const moveHandler = createMoveHandler(initialCoords, resizeDirection, options)
-
-    /*
-      Add event listener to handle pointer motion
-    */
-    window.addEventListener('pointermove', moveHandler, false)
-
-    /*
-     Add event listener that will stop interaction
-     once the pointer is up
-    */
-    window.addEventListener('pointerup', () => {
-      window.removeEventListener('pointermove', moveHandler, false)
-    }, {
-      capture: false,
-      /* 
-        We only need this to fire once per interaction
-      */
-      once: true
-    })
-  }, [options.size.width, options.size.height, options.onResize]) // eslint-disable-line
+export const useResizer = (useResizerOptions: TUseResizerOptions): HandlePropsMap => {
+  const [memoized, setNewMemoized] = useState(false)
+  const f = Math.random()
+  const createPointerDownHandler = useCallback<TCreatePointerDownHandler>((resizeDirection) => {
+    console.log(f)
+    return (event) => {
+      blockTextSelection(event)
+  
+      const initialCoords: TPointCoords = getEventCoordinates(event.nativeEvent)
+      /* Use closure that preserves inital coords of interaction */
+      const moveHandler = createMoveHandler(initialCoords, resizeDirection, useResizerOptions)
+  
+      /* Add event listener to handle pointer motion */
+      window.addEventListener('pointermove', moveHandler, false)
+  
+      /* Add event listener that will stop interaction once the pointer is up */
+      window.addEventListener('pointerup', () => {
+        window.removeEventListener('pointermove', moveHandler, false)
+        setNewMemoized(!memoized)
+      }, {
+        capture: false,
+        once: true /* We only need this to fire once per interaction */
+      })
+    }
+    // only update handlers when resize event stops
+  }, [memoized]) // eslint-disable-line
 
   const handlePropsMap = useMemo(() => allowedResizeDirections.reduce<HandlePropsMap>((acc, direction) => {
     return {
       ...acc,
-      [direction]: createHandlePropsForDirection(direction, createPointerDownHandler)
+      [direction]: {
+        onPointerDown: createPointerDownHandler(direction)
+      }
     }
-  }, {} as HandlePropsMap), [createPointerDownHandler])
+  }, {} as HandlePropsMap), [createPointerDownHandler]) 
 
   return handlePropsMap
 }
