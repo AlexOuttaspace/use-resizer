@@ -26,37 +26,60 @@ interface TUseResizerOptions {
 /*
   This function prevents text selection which occurs when user drags cursor around the document.
 */
-const blockTextSelection = (e: React.PointerEvent<HTMLElement> | PointerEvent): void =>{
-  e.stopPropagation();
-  e.preventDefault();
+const blockTextSelection = (event: React.PointerEvent<HTMLElement> | PointerEvent): void =>{
+  event.stopPropagation()
+  event.preventDefault()
 }
 
 const allowedResizeDirections: ResizeDirection[] = ['top' , 'topRight' , 'right' , 'bottomRight' , 'bottom' , 'bottomLeft' , 'left' , 'topLeft']
 
-const createHandlePropsForDirection = (direction: ResizeDirection, createPointerDown: TCreatePointerDownHandler) => {
+const createHandlePropsForDirection = (
+  direction: ResizeDirection,
+  createPointerDown: TCreatePointerDownHandler
+) => {
   return {
     onPointerDown: createPointerDown(direction)
   }
 }
 
-const getEventCoordinates = ({ clientX, clientY }: PointerEvent): TPointCoords => ({
+const getEventCoordinates = (
+  { clientX, clientY }: PointerEvent
+): TPointCoords => ({
   x: clientX,
   y: clientY
 })
 
-const createMoveHandler = (initialCoords: TPointCoords, resizeDirection: ResizeDirection, resizerOptions: TUseResizerOptions): any => {
-  const { size: { width, height }, onResize } = resizerOptions
+const calculateNewSize = (previousSize: TElementSize, displaysmentVector: TPointCoords, displaysmentDirection: ResizeDirection): TElementSize => {
+  switch (displaysmentDirection) {
+    default:
+      return previousSize
+  }
+}
+
+
+const createMoveHandler = (
+  initialCoords: TPointCoords,
+  resizeDirection: ResizeDirection,
+  resizerOptions: TUseResizerOptions
+): (event: PointerEvent) => void => {
+  const { size, onResize } = resizerOptions
 
   return (event: PointerEvent) => {
    
     const currentPointerCoords = getEventCoordinates(event)
 
-    const displaysments: TPointCoords = {
+    /*
+      x represents distance from left to right
+      y represents distance from top to bottom
+    */
+    const displaysmentVector: TPointCoords = {
       x: currentPointerCoords.x - initialCoords.x,
       y: currentPointerCoords.y - initialCoords.y
     }
 
-    onResize && onResize({ width: width + displaysments.x, height: height + displaysments.y })
+    const newSize = calculateNewSize(size, displaysmentVector, resizeDirection)
+
+    onResize && onResize(newSize)
   }
 }
 
