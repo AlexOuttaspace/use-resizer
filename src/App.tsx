@@ -1,25 +1,28 @@
 import React from 'react';
 import logo from './logo.svg';
 import './App.css';
+import { useResizer } from './resizer'
+
+const blockStyle = {
+  width: 100,
+  height: 100,
+  border: '1px solid green'
+}
 
 const App: React.FC = () => {
+  const { top, left, right, bottom, topRight, topLeft, bottomLeft, bottomRight } = useResizer()
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <React.Fragment>
+      <div {...top} style={blockStyle}>top</div>
+      <div {...left} style={blockStyle}>left</div>
+      <div {...right} style={blockStyle}>right</div>
+      <div {...bottom} style={blockStyle}>bottom</div>
+      <div {...topRight} style={blockStyle}>topRight</div>    
+      <div {...topLeft} style={blockStyle}>topLeft</div>    
+      <div {...bottomLeft} style={blockStyle}>bottomLeft</div>    
+      <div {...bottomRight} style={blockStyle}>bottomRight</div>        
+    </React.Fragment>
   );
 }
 
