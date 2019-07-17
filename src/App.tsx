@@ -4,8 +4,8 @@ import { useResizer, ResizeDirection } from './resizer'
 
 const wrapperStyle: React.CSSProperties = {
   position: 'absolute',
-  left: 30,
-  top: 30
+  left: 100,
+  top: 100
 }
 
 const getHandleStyle = (direction: ResizeDirection): React.CSSProperties => {
@@ -39,12 +39,13 @@ const App: React.FC = () => {
 
   const { top, left, right, bottom, topRight, topLeft, bottomLeft, bottomRight } = useResizer({
     onResize,
-    size
+    size,
+    scale: 2
   })
 
   return (
     <React.Fragment>
-      <div style={{...wrapperStyle, ...size}}>
+      <div style={{...wrapperStyle, ...size, transform: 'scale(2)', transformOrigin: 'top left'}}>
         <div {...top} style={getHandleStyle('top')}>top</div>
         <div {...left} style={getHandleStyle('left')}>left</div>
         <div {...right} style={getHandleStyle('right')}>right</div>

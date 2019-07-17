@@ -19,7 +19,8 @@ export interface TElementSize {
 }
 
 interface TUseResizerOptions {
-  onResize?: (size: { width: number, height: number }) => void
+  scale?: number
+  onResize: (size: { width: number, height: number }) => void
   size: TElementSize
 }
 
@@ -92,10 +93,9 @@ const createMoveHandler = (
   resizeDirection: ResizeDirection,
   resizerOptions: TUseResizerOptions
 ): (event: PointerEvent) => void => {
-  const { size, onResize } = resizerOptions
+  const { size, onResize, scale = 1 } = resizerOptions
 
   return (event: PointerEvent) => {
-   
     const currentPointerCoords = getEventCoordinates(event)
 
     /*
@@ -103,12 +103,13 @@ const createMoveHandler = (
       y represents distance from top to bottom
     */
     const displaysmentVector: TPointCoords = {
-      x: currentPointerCoords.x - initialCoords.x,
-      y: currentPointerCoords.y - initialCoords.y
+      x: (currentPointerCoords.x - initialCoords.x) / scale,
+      y: (currentPointerCoords.y - initialCoords.y) / scale
     }
 
     const newSize = sizeReducer(size, displaysmentVector, resizeDirection)
-    onResize && onResize(newSize)
+
+    onResize(newSize)
   }
 }
 
@@ -145,7 +146,7 @@ export const useResizer = (useResizerOptions: TUseResizerOptions): HandlePropsMa
       until the intraction is over. Profiler shows about 50% performance boost, so although solution is
       a bit ugly, it stays here until I find something better.
     */
-  }, [memoized]) // eslint-disable-line
+  }, [memoized]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePropsMap = useMemo(() => allowedResizeDirections.reduce<HandlePropsMap>((acc, direction) => {
     return {
