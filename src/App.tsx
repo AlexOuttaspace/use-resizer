@@ -4,6 +4,7 @@ import { useResizer, ResizeDirection } from './resizer'
 
 const wrapperStyle: React.CSSProperties = {
   position: 'absolute',
+  border: '1px solid green',
   left: 100,
   top: 100
 }

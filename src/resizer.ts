@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 export type ResizeDirection = 'top' | 'topRight' | 'right' | 'bottomRight' | 'bottom' | 'bottomLeft' | 'left' | 'topLeft'
 type TPointCoords = { x: number, y: number }
@@ -6,7 +6,7 @@ type TOnPointerDown = (event: React.PointerEvent<HTMLElement>) => void
 type TCreatePointerDownHandler = (resizeDirection: ResizeDirection) => TOnPointerDown
 
 type HandleProps = {
-  onPointerDown: TOnPointerDown
+  onPointerDown?: TOnPointerDown
 }
 
 type HandlePropsMap = {
@@ -113,40 +113,45 @@ const createMoveHandler = (
   }
 }
 
+/*
+  This small custom memoize is used to prevent recreation of onPointerDown
+  event handlers during interaction, when our width and height can change up to 60 times per second.
+  If we recreate and attach event handlers on each rerender we lose 50% of our performance.
+*/
+const memoizedHandler = (() => {
+  let memoized: any
+  return <T extends (...args: any[]) => any>(arg: T, shouldUseMemoized: boolean): T  => {
+    if (!shouldUseMemoized || memoized === undefined) {
+      memoized = arg
+      return arg
+    }
+
+    return memoized
+  }
+})()
 
 export const useResizer = (useResizerOptions: TUseResizerOptions): HandlePropsMap => {
-  const [memoized, setNewMemoized] = useState(false)
-  const createPointerDownHandler = useCallback<TCreatePointerDownHandler>((resizeDirection) => {
-    return (event) => {
-      blockTextSelection(event)
-  
-      const initialCoords: TPointCoords = getEventCoordinates(event.nativeEvent)
-      /* Use closure that preserves inital coords of interaction */
-      const moveHandler = createMoveHandler(initialCoords, resizeDirection, useResizerOptions)
-  
-      /* Add event listener to handle pointer motion */
-      window.addEventListener('pointermove', moveHandler, false)
-  
-      /* Add event listener that will stop interaction once the pointer is up */
-      window.addEventListener('pointerup', () => {
-        window.removeEventListener('pointermove', moveHandler, false)
-        setNewMemoized(!memoized)
-      }, {
-        capture: false,
-        once: true /* We only need this to fire once per interaction */
-      })
-    }
-    /*
-      We change `memoized` state each time interaction ends (pointerup event),
-      so that we only create new event handlers when interaction is over.
-      
-      This is required for performance, because otherwise each time we change width or height
-      of the element (which during interaction can happen about 60 time per second) we create new
-      onPointerDown event handlers and reattach them to element. These event handlers are useless
-      until the intraction is over. Profiler shows about 50% performance boost, so although solution is
-      a bit ugly, it stays here until I find something better.
-    */
-  }, [memoized]) // eslint-disable-line react-hooks/exhaustive-deps
+  const [isResizing, setIsResizing] = useState(false)
+  const createPointerDownHandler = useMemo(() => memoizedHandler<TCreatePointerDownHandler>((resizeDirection: any) => (event: any) => {
+    blockTextSelection(event)
+    setIsResizing(true)
+
+    const initialCoords: TPointCoords = getEventCoordinates(event.nativeEvent)
+    /* Use closure that preserves inital coords of interaction */
+    const moveHandler = createMoveHandler(initialCoords, resizeDirection, useResizerOptions)
+
+    /* Add event listener to handle pointer motion */
+    window.addEventListener('pointermove', moveHandler, false)
+
+    /* Add event listener that will stop interaction once the pointer is up */
+    window.addEventListener('pointerup', () => {
+      window.removeEventListener('pointermove', moveHandler, false)
+      setIsResizing(false)
+    }, {
+      capture: false,
+      once: true /* We only need this to fire once per interaction */
+    })
+  }, !isResizing), [isResizing, useResizerOptions] )
 
   const handlePropsMap = useMemo(() => allowedResizeDirections.reduce<HandlePropsMap>((acc, direction) => {
     return {
