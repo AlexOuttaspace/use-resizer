@@ -8,7 +8,7 @@ const getInteractionHandleStyle = (scale: number): React.CSSProperties => ({
   backgroundColor: '#fff',
   width: 15 / scale,
   height: 15 / scale,
-  borderWidth: 1.5 / scale,
+  borderWidth: 1 / scale,
   borderColor: '#1baee1',
   borderStyle: 'solid'
 })

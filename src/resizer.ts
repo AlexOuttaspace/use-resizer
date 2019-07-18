@@ -194,7 +194,7 @@ const sizeAspectRatioReducer = (
   event handlers during interaction, when our width and height can change up to 60 times per second.
   If we recreate and attach event handlers on each rerender we lose 50% of our performance.
 */
-const memoizedHandler = (() => {
+const createHanlerMemoize = (() => {
   let memoized: any
   return <T extends (...args: any[]) => any>(
     arg: T,
@@ -207,7 +207,7 @@ const memoizedHandler = (() => {
 
     return memoized
   }
-})()
+})
 
 const adjustToMinSize = (
   size: TElementSize,
@@ -223,6 +223,8 @@ export const useResizer = (
 ): HandlePropsMap => {
   const [isResizing, setIsResizing] = useState(false)
   const { onResizeStop, onResizeStart } = useResizerOptions
+
+  const memoizedHandler = useMemo(() => createHanlerMemoize(), [])
 
   useEffect(() => {
     if (isResizing) {
@@ -316,7 +318,7 @@ export const useResizer = (
       },
       isResizing
     )
-  }, [isResizing, useResizerOptions])
+  }, [isResizing, memoizedHandler, useResizerOptions])
 
   const handlePropsMap = useMemo(
     () =>
