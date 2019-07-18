@@ -1,11 +1,24 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 
-export type ResizeDirection = 'top' | 'topRight' | 'right' | 'bottomRight' | 'bottom' | 'bottomLeft' | 'left' | 'topLeft'
-type TPointCoords = { x: number, y: number }
+export type ResizeDirection =
+  | 'top'
+  | 'topRight'
+  | 'right'
+  | 'bottomRight'
+  | 'bottom'
+  | 'bottomLeft'
+  | 'left'
+  | 'topLeft'
+interface TPointCoords {
+  x: number
+  y: number
+}
 type TOnPointerDown = (event: React.PointerEvent<HTMLElement>) => void
-type TCreatePointerDownHandler = (resizeDirection: ResizeDirection) => TOnPointerDown
+type TCreatePointerDownHandler = (
+  resizeDirection: ResizeDirection
+) => TOnPointerDown
 
-type HandleProps = {
+interface HandleProps {
   onPointerDown?: TOnPointerDown
 }
 
@@ -20,29 +33,79 @@ export interface TElementSize {
 
 interface TUseResizerOptions {
   scale?: number
-  onResize: (size: { width: number, height: number }) => void
+  minWidth?: number
+  minHeight?: number
+  onResize: (
+    size: { width: number; height: number },
+    resizeDirection: ResizeDirection
+  ) => void
+  onResizeStart?: (resizeDirection?: ResizeDirection) => void
+  onResizeStop?: (resizeDirection?: ResizeDirection) => void
   size: TElementSize
+  rotation?: number
+  preserveAspectRatio?: boolean
+  preserveAspectRatioOnShiftKey?: boolean
 }
 
 /*
-  This function prevents text selection which occurs when user drags cursor around the document.
+  This function prevents text selection which occurs
+  when user drags cursor around the document.
 */
-const blockTextSelection = (event: React.PointerEvent<HTMLElement> | PointerEvent): void =>{
+const blockTextSelection = (
+  event: React.PointerEvent<HTMLElement> | PointerEvent
+): void => {
   event.stopPropagation()
   event.preventDefault()
 }
 
-const allowedResizeDirections: ResizeDirection[] = ['top' , 'topRight' , 'right' , 'bottomRight' , 'bottom' , 'bottomLeft' , 'left' , 'topLeft']
+const allowedResizeDirections: ResizeDirection[] = [
+  'top',
+  'topRight',
+  'right',
+  'bottomRight',
+  'bottom',
+  'bottomLeft',
+  'left',
+  'topLeft'
+]
 
-const getEventCoordinates = (
-  { clientX, clientY }: PointerEvent
-): TPointCoords => ({
+const cos = (angle: number): number => Math.cos((angle * Math.PI) / 180)
+const sin = (angle: number): number => Math.sin((angle * Math.PI) / 180)
+
+const getEventCoordinates = ({
+  clientX,
+  clientY
+}: PointerEvent): TPointCoords => ({
   x: clientX,
   y: clientY
 })
 
-const sizeReducer = (previousSize: TElementSize, displaysmentVector: TPointCoords, displaysmentDirection: ResizeDirection): TElementSize => {
-  switch (displaysmentDirection) {
+interface ResizeAction {
+  resizeDirection: ResizeDirection
+  displaysmentVector: TPointCoords
+}
+
+const rotateDisplaysmentVector = (
+  vector: TPointCoords,
+  rotation: number
+): TPointCoords => {
+  const cosAngle = cos(rotation)
+  const sinAngle = sin(rotation)
+
+  // https://en.wikipedia.org/wiki/Rotation_matrix
+  const rotatedVector = {
+    x: cosAngle * vector.x + sinAngle * vector.y,
+    y: -(sinAngle * vector.x - cosAngle * vector.y) // negative value is because in HTML y axis is from top to bottom
+  }
+
+  return rotatedVector
+}
+
+const sizeReducer = (
+  previousSize: TElementSize,
+  { displaysmentVector, resizeDirection }: ResizeAction
+): TElementSize => {
+  switch (resizeDirection) {
     case 'top':
       return {
         width: previousSize.width,
@@ -88,28 +151,41 @@ const sizeReducer = (previousSize: TElementSize, displaysmentVector: TPointCoord
   }
 }
 
-const createMoveHandler = (
-  initialCoords: TPointCoords,
+const sizeAspectRatioReducer = (
+  oldSize: TElementSize,
+  newSize: TElementSize,
   resizeDirection: ResizeDirection,
-  resizerOptions: TUseResizerOptions
-): (event: PointerEvent) => void => {
-  const { size, onResize, scale = 1 } = resizerOptions
+  preserveAspectRatio: boolean
+): TElementSize => {
+  if (!preserveAspectRatio) return newSize
 
-  return (event: PointerEvent) => {
-    const currentPointerCoords = getEventCoordinates(event)
+  switch (resizeDirection) {
+    case 'topRight':
+    case 'bottomRight':
+    case 'bottomLeft':
+    case 'topLeft':
+    case 'right':
+    case 'left': {
+      const ratio = newSize.width / oldSize.width
 
-    /*
-      x represents distance from left to right
-      y represents distance from top to bottom
-    */
-    const displaysmentVector: TPointCoords = {
-      x: (currentPointerCoords.x - initialCoords.x) / scale,
-      y: (currentPointerCoords.y - initialCoords.y) / scale
+      return {
+        width: newSize.width,
+        height: oldSize.height * ratio
+      }
     }
 
-    const newSize = sizeReducer(size, displaysmentVector, resizeDirection)
+    case 'top':
+    case 'bottom': {
+      const ratio = newSize.height / oldSize.height
 
-    onResize(newSize)
+      return {
+        width: oldSize.width * ratio,
+        height: newSize.height
+      }
+    }
+
+    default:
+      return newSize
   }
 }
 
@@ -120,7 +196,10 @@ const createMoveHandler = (
 */
 const memoizedHandler = (() => {
   let memoized: any
-  return <T extends (...args: any[]) => any>(arg: T, shouldUseMemoized: boolean): T  => {
+  return <T extends (...args: any[]) => any>(
+    arg: T,
+    shouldUseMemoized: boolean
+  ): T => {
     if (!shouldUseMemoized || memoized === undefined) {
       memoized = arg
       return arg
@@ -130,37 +209,130 @@ const memoizedHandler = (() => {
   }
 })()
 
-export const useResizer = (useResizerOptions: TUseResizerOptions): HandlePropsMap => {
+const adjustToMinSize = (
+  size: TElementSize,
+  minHeight: number,
+  minWidth: number
+): TElementSize => ({
+  width: size.width > minWidth ? size.width : minWidth,
+  height: size.height > minHeight ? size.height : minHeight
+})
+
+export const useResizer = (
+  useResizerOptions: TUseResizerOptions
+): HandlePropsMap => {
   const [isResizing, setIsResizing] = useState(false)
-  const createPointerDownHandler = useMemo(() => memoizedHandler<TCreatePointerDownHandler>((resizeDirection: any) => (event: any) => {
-    blockTextSelection(event)
-    setIsResizing(true)
+  const { onResizeStop, onResizeStart } = useResizerOptions
 
-    const initialCoords: TPointCoords = getEventCoordinates(event.nativeEvent)
-    /* Use closure that preserves inital coords of interaction */
-    const moveHandler = createMoveHandler(initialCoords, resizeDirection, useResizerOptions)
-
-    /* Add event listener to handle pointer motion */
-    window.addEventListener('pointermove', moveHandler, false)
-
-    /* Add event listener that will stop interaction once the pointer is up */
-    window.addEventListener('pointerup', () => {
-      window.removeEventListener('pointermove', moveHandler, false)
-      setIsResizing(false)
-    }, {
-      capture: false,
-      once: true /* We only need this to fire once per interaction */
-    })
-  }, !isResizing), [isResizing, useResizerOptions] )
-
-  const handlePropsMap = useMemo(() => allowedResizeDirections.reduce<HandlePropsMap>((acc, direction) => {
-    return {
-      ...acc,
-      [direction]: {
-        onPointerDown: createPointerDownHandler(direction)
-      }
+  useEffect(() => {
+    if (isResizing) {
+      onResizeStart && onResizeStart()
+      return
     }
-  }, {} as HandlePropsMap), [createPointerDownHandler]) 
+    onResizeStop && onResizeStop()
+    return
+  }, [isResizing, onResizeStart, onResizeStop])
+
+  const createPointerDownHandler = useMemo(() => {
+    return memoizedHandler<TCreatePointerDownHandler>(
+      (resizeDirection) => (event) => {
+        blockTextSelection(event)
+
+        const {
+          size,
+          onResize,
+          scale = 1,
+          minHeight = 0,
+          minWidth = 0,
+          rotation = 0,
+          preserveAspectRatio = false,
+          preserveAspectRatioOnShiftKey = false
+        } = useResizerOptions
+
+        const initialCoords: TPointCoords = getEventCoordinates(
+          event.nativeEvent
+        )
+        /* Use closure that preserves inital coords of interaction */
+        const moveHandler = (event: PointerEvent) => {
+          const currentPointerCoords = getEventCoordinates(event)
+
+          const shouldPreserveAspectRatio =
+            preserveAspectRatio ||
+            (preserveAspectRatioOnShiftKey && event.shiftKey)
+
+          /* 
+            x represents distance from left to right
+            y represents distance from top to bottom
+          */
+          const displaysmentVector: TPointCoords = {
+            x: (currentPointerCoords.x - initialCoords.x) / scale,
+            y: (currentPointerCoords.y - initialCoords.y) / scale
+          }
+
+          const transformedVector = rotateDisplaysmentVector(
+            displaysmentVector,
+            rotation
+          )
+
+          const newSize = sizeReducer(size, {
+            displaysmentVector: transformedVector,
+            resizeDirection
+          })
+
+          const adjustedToMinSize = adjustToMinSize(
+            newSize,
+            minHeight,
+            minWidth
+          )
+
+          const adjustedSize = sizeAspectRatioReducer(
+            size,
+            adjustedToMinSize,
+            resizeDirection,
+            shouldPreserveAspectRatio
+          )
+
+          onResize(adjustedSize, resizeDirection)
+        }
+
+        /* Add event listener to handle pointer motion */
+        window.addEventListener('pointermove', moveHandler, false)
+
+        setIsResizing(true)
+
+        /* Add event listener that will stop interaction once the pointer is up */
+        window.addEventListener(
+          'pointerup',
+          () => {
+            window.removeEventListener('pointermove', moveHandler, false)
+
+            setIsResizing(false)
+          },
+          {
+            capture: false,
+            once: true /* We only need this to fire once per interaction */
+          }
+        )
+      },
+      isResizing
+    )
+  }, [isResizing, useResizerOptions])
+
+  const handlePropsMap = useMemo(
+    () =>
+      allowedResizeDirections.reduce<HandlePropsMap>(
+        (acc, direction) => {
+          return {
+            ...acc,
+            [direction]: {
+              onPointerDown: createPointerDownHandler(direction)
+            }
+          }
+        },
+        {} as HandlePropsMap
+      ),
+    [createPointerDownHandler]
+  )
 
   return handlePropsMap
 }
