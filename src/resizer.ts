@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useRef } from 'react'
 
 export type ResizeDirection =
   | 'top'
@@ -218,45 +218,60 @@ const adjustToMinSize = (
   height: size.height > minHeight ? size.height : minHeight
 })
 
+const useRefToValue = <T extends {}>(value: T) => {
+  const refToValue = useRef<T>(value)
+
+  refToValue.current = value
+
+  return refToValue
+}
+
+interface UseResizerReturnValue extends HandlePropsMap {
+  isResizing: boolean
+}
+
 export const useResizer = (
   useResizerOptions: TUseResizerOptions
-): HandlePropsMap => {
+): UseResizerReturnValue => {
   const [isResizing, setIsResizing] = useState(false)
-  const { onResizeStop, onResizeStart } = useResizerOptions
+
+  /* 
+    When the interaction starts, onPointerDown handler has access only to values
+    of props for the moment when interaction is started. This means that if we get
+    different props during interaction, our onPointerDown handler would still use old values.
+    Using this custom hook allows us to avoid this, as we dont change a value of ref, but instead only
+    change .current field, which means that ref object never changes it's value (pointer value I mean),
+    but we still have access to all relevant props, and can handle cases when they are change during the interaction
+  */
+  const refToProps = useRefToValue(useResizerOptions)
 
   const memoizedHandler = useMemo(() => createHanlerMemoize(), [])
-
-  useEffect(() => {
-    if (isResizing) {
-      onResizeStart && onResizeStart()
-      return
-    }
-    onResizeStop && onResizeStop()
-    return
-  }, [isResizing, onResizeStart, onResizeStop])
 
   const createPointerDownHandler = useMemo(() => {
     return memoizedHandler<TCreatePointerDownHandler>(
       (resizeDirection) => (event) => {
         blockTextSelection(event)
 
-        const {
-          size,
-          onResize,
-          scale = 1,
-          minHeight = 0,
-          minWidth = 0,
-          rotation = 0,
-          preserveAspectRatio = false,
-          preserveAspectRatioOnShiftKey = false
-        } = useResizerOptions
-
-        const initialCoords: TPointCoords = getEventCoordinates(
+        /*
+          This is a private variable which we use in moveHandler to store previous mouse coordinates
+        */
+        let previousPointerCoords: TPointCoords = getEventCoordinates(
           event.nativeEvent
         )
         /* Use closure that preserves inital coords of interaction */
         const moveHandler = (event: PointerEvent) => {
           const currentPointerCoords = getEventCoordinates(event)
+
+          const {
+            size,
+            scale = 1,
+            minHeight = 0,
+            minWidth = 0,
+            rotation = 0,
+            onResize,
+            preserveAspectRatio = false,
+            preserveAspectRatioOnShiftKey = false
+          } = refToProps.current
 
           const shouldPreserveAspectRatio =
             preserveAspectRatio ||
@@ -267,8 +282,8 @@ export const useResizer = (
             y represents distance from top to bottom
           */
           const displaysmentVector: TPointCoords = {
-            x: (currentPointerCoords.x - initialCoords.x) / scale,
-            y: (currentPointerCoords.y - initialCoords.y) / scale
+            x: (currentPointerCoords.x - previousPointerCoords.x) / scale,
+            y: (currentPointerCoords.y - previousPointerCoords.y) / scale
           }
 
           const transformedVector = rotateDisplaysmentVector(
@@ -294,12 +309,14 @@ export const useResizer = (
             shouldPreserveAspectRatio
           )
 
+          previousPointerCoords = currentPointerCoords
           onResize(adjustedSize, resizeDirection)
         }
 
         /* Add event listener to handle pointer motion */
         window.addEventListener('pointermove', moveHandler, false)
-
+        const { onResizeStart } = refToProps.current
+        onResizeStart && onResizeStart()
         setIsResizing(true)
 
         /* Add event listener that will stop interaction once the pointer is up */
@@ -307,7 +324,8 @@ export const useResizer = (
           'pointerup',
           () => {
             window.removeEventListener('pointermove', moveHandler, false)
-
+            const { onResizeStop } = refToProps.current
+            onResizeStop && onResizeStop()
             setIsResizing(false)
           },
           {
@@ -318,7 +336,7 @@ export const useResizer = (
       },
       isResizing
     )
-  }, [isResizing, memoizedHandler, useResizerOptions])
+  }, [isResizing, memoizedHandler, refToProps])
 
   const handlePropsMap = useMemo(
     () =>
@@ -331,10 +349,10 @@ export const useResizer = (
             }
           }
         },
-        {} as HandlePropsMap
+        {} as UseResizerReturnValue
       ),
     [createPointerDownHandler]
   )
 
-  return handlePropsMap
+  return { ...handlePropsMap, isResizing }
 }
