@@ -59,31 +59,31 @@ const App: React.FC = () => {
   const [size, setSize] = useState({ width: 100, height: 100})
 
   const onResize = useCallback(({ width, height}) => setSize({ width, height }), [])
-  // const f = Math.random()
-  // console.log('number passed to resizer is', f)
+  const f = Math.random()
+  console.log('number passed to resizer is', f)
 
-  const resizeHandleProps = useResizer({
+  const { resizeHandlesProps, isResizing } = useResizer({
     onResize,
     size,
-    // onResizeStart: () => {
-    //   console.log('but when resize starts, we have our number equal to', f)
-    // },
-    // onResizeStop: () => {
-    //   console.log('and when it stops, we have our number equal to', f)
-    // }
+    onResizeStart: () => {
+      console.log('but when resize starts, we have our number equal to', f)
+    },
+    onResizeStop: () => {
+      console.log('and when it stops, we have our number equal to', f)
+    }
   })
 
   return (
     <React.Fragment>
-      <div style={{...wrapperStyle, ...size, transformOrigin: 'top left', borderColor: resizeHandleProps.isResizing ? 'red' : 'blue' }}>
-        <InteractionHandle additionalProps={resizeHandleProps.top} scale={1} positionStyles={getHandleStyle('top', rotation)}/>
-        <InteractionHandle additionalProps={resizeHandleProps.left} scale={1} positionStyles={getHandleStyle('left', rotation)}/>
-        <InteractionHandle additionalProps={resizeHandleProps.right} scale={1} positionStyles={getHandleStyle('right', rotation)}/>
-        <InteractionHandle additionalProps={resizeHandleProps.bottom} scale={1} positionStyles={getHandleStyle('bottom', rotation)}/>
-        <InteractionHandle additionalProps={resizeHandleProps.topRight} scale={1} positionStyles={getHandleStyle('topRight', rotation)}/>
-        <InteractionHandle additionalProps={resizeHandleProps.topLeft} scale={1} positionStyles={getHandleStyle('topLeft', rotation)}/>
-        <InteractionHandle additionalProps={resizeHandleProps.bottomLeft} scale={1} positionStyles={getHandleStyle('bottomLeft', rotation)}/>
-        <InteractionHandle additionalProps={resizeHandleProps.bottomRight} scale={1} positionStyles={getHandleStyle('bottomRight', rotation)}/>    
+      <div style={{...wrapperStyle, ...size, transformOrigin: 'top left', borderColor: isResizing ? 'red' : 'blue' }}>
+        <InteractionHandle additionalProps={resizeHandlesProps.top} scale={1} positionStyles={getHandleStyle('top', rotation)}/>
+        <InteractionHandle additionalProps={resizeHandlesProps.left} scale={1} positionStyles={getHandleStyle('left', rotation)}/>
+        <InteractionHandle additionalProps={resizeHandlesProps.right} scale={1} positionStyles={getHandleStyle('right', rotation)}/>
+        <InteractionHandle additionalProps={resizeHandlesProps.bottom} scale={1} positionStyles={getHandleStyle('bottom', rotation)}/>
+        <InteractionHandle additionalProps={resizeHandlesProps.topRight} scale={1} positionStyles={getHandleStyle('topRight', rotation)}/>
+        <InteractionHandle additionalProps={resizeHandlesProps.topLeft} scale={1} positionStyles={getHandleStyle('topLeft', rotation)}/>
+        <InteractionHandle additionalProps={resizeHandlesProps.bottomLeft} scale={1} positionStyles={getHandleStyle('bottomLeft', rotation)}/>
+        <InteractionHandle additionalProps={resizeHandlesProps.bottomRight} scale={1} positionStyles={getHandleStyle('bottomRight', rotation)}/>    
       </div>
     </React.Fragment>
   );

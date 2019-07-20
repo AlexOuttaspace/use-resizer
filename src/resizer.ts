@@ -9,39 +9,37 @@ export type ResizeDirection =
   | 'bottomLeft'
   | 'left'
   | 'topLeft'
-interface TPointCoords {
+
+interface PointCoords {
   x: number
   y: number
 }
-type TOnPointerDown = (event: React.PointerEvent<HTMLElement>) => void
-type TCreatePointerDownHandler = (
+type OnPointerDown = (event: React.PointerEvent<HTMLElement>) => void
+type CreatePointerDownHandler = (
   resizeDirection: ResizeDirection
-) => TOnPointerDown
+) => OnPointerDown
 
 interface HandleProps {
-  onPointerDown?: TOnPointerDown
+  onPointerDown?: OnPointerDown
 }
 
-type HandlePropsMap = {
+type ResizeHandlePropsMap = {
   [key in ResizeDirection]: HandleProps
 }
 
-export interface TElementSize {
+export interface ElementSize {
   width: number
   height: number
 }
 
-interface TUseResizerOptions {
+interface UseResizerOptions {
   scale?: number
   minWidth?: number
   minHeight?: number
-  onResize: (
-    size: { width: number; height: number },
-    resizeDirection: ResizeDirection
-  ) => void
-  onResizeStart?: (resizeDirection?: ResizeDirection) => void
-  onResizeStop?: (resizeDirection?: ResizeDirection) => void
-  size: TElementSize
+  onResize: (size: ElementSize, resizeDirection: ResizeDirection, event: PointerEvent) => void
+  onResizeStart?: (size: ElementSize, resizeDirection: ResizeDirection, event: React.PointerEvent<HTMLElement>) => void
+  onResizeStop?: (size: ElementSize, resizeDirection: ResizeDirection, event: PointerEvent) => void
+  size: ElementSize
   rotation?: number
   preserveAspectRatio?: boolean
   preserveAspectRatioOnShiftKey?: boolean
@@ -75,20 +73,22 @@ const sin = (angle: number): number => Math.sin((angle * Math.PI) / 180)
 const getEventCoordinates = ({
   clientX,
   clientY
-}: PointerEvent): TPointCoords => ({
+
+}: PointerEvent): PointCoords => ({
   x: clientX,
   y: clientY
 })
 
 interface ResizeAction {
   resizeDirection: ResizeDirection
-  displaysmentVector: TPointCoords
+
+  displaysmentVector: PointCoords
 }
 
 const rotateDisplaysmentVector = (
-  vector: TPointCoords,
+  vector: PointCoords,
   rotation: number
-): TPointCoords => {
+): PointCoords => {
   const cosAngle = cos(rotation)
   const sinAngle = sin(rotation)
 
@@ -102,9 +102,9 @@ const rotateDisplaysmentVector = (
 }
 
 const sizeReducer = (
-  previousSize: TElementSize,
+  previousSize: ElementSize,
   { displaysmentVector, resizeDirection }: ResizeAction
-): TElementSize => {
+): ElementSize => {
   switch (resizeDirection) {
     case 'top':
       return {
@@ -152,11 +152,11 @@ const sizeReducer = (
 }
 
 const sizeAspectRatioReducer = (
-  oldSize: TElementSize,
-  newSize: TElementSize,
+  oldSize: ElementSize,
+  newSize: ElementSize,
   resizeDirection: ResizeDirection,
   preserveAspectRatio: boolean
-): TElementSize => {
+): ElementSize => {
   if (!preserveAspectRatio) return newSize
 
   switch (resizeDirection) {
@@ -210,10 +210,10 @@ const createHanlerMemoize = (() => {
 })
 
 const adjustToMinSize = (
-  size: TElementSize,
+  size: ElementSize,
   minHeight: number,
   minWidth: number
-): TElementSize => ({
+): ElementSize => ({
   width: size.width > minWidth ? size.width : minWidth,
   height: size.height > minHeight ? size.height : minHeight
 })
@@ -226,12 +226,13 @@ const useRefToValue = <T extends {}>(value: T) => {
   return refToValue
 }
 
-interface UseResizerReturnValue extends HandlePropsMap {
+interface UseResizerReturnValue  {
+  resizeHandlesProps: ResizeHandlePropsMap
   isResizing: boolean
 }
 
 export const useResizer = (
-  useResizerOptions: TUseResizerOptions
+  useResizerOptions: UseResizerOptions
 ): UseResizerReturnValue => {
   const [isResizing, setIsResizing] = useState(false)
 
@@ -248,14 +249,15 @@ export const useResizer = (
   const memoizedHandler = useMemo(() => createHanlerMemoize(), [])
 
   const createPointerDownHandler = useMemo(() => {
-    return memoizedHandler<TCreatePointerDownHandler>(
+    return memoizedHandler<CreatePointerDownHandler>(
       (resizeDirection) => (event) => {
         blockTextSelection(event)
 
         /*
           This is a private variable which we use in moveHandler to store previous mouse coordinates
         */
-        let previousPointerCoords: TPointCoords = getEventCoordinates(
+      
+        let previousPointerCoords: PointCoords = getEventCoordinates(
           event.nativeEvent
         )
         /* Use closure that preserves inital coords of interaction */
@@ -281,7 +283,8 @@ export const useResizer = (
             x represents distance from left to right
             y represents distance from top to bottom
           */
-          const displaysmentVector: TPointCoords = {
+        
+          const displaysmentVector: PointCoords = {
             x: (currentPointerCoords.x - previousPointerCoords.x) / scale,
             y: (currentPointerCoords.y - previousPointerCoords.y) / scale
           }
@@ -310,22 +313,22 @@ export const useResizer = (
           )
 
           previousPointerCoords = currentPointerCoords
-          onResize(adjustedSize, resizeDirection)
+          onResize(adjustedSize, resizeDirection, event)
         }
 
         /* Add event listener to handle pointer motion */
         window.addEventListener('pointermove', moveHandler, false)
-        const { onResizeStart } = refToProps.current
-        onResizeStart && onResizeStart()
+        const { onResizeStart, size } = refToProps.current
+        onResizeStart && onResizeStart(size, resizeDirection, event)
         setIsResizing(true)
 
         /* Add event listener that will stop interaction once the pointer is up */
         window.addEventListener(
           'pointerup',
-          () => {
+          (event: PointerEvent) => {
             window.removeEventListener('pointermove', moveHandler, false)
-            const { onResizeStop } = refToProps.current
-            onResizeStop && onResizeStop()
+            const { onResizeStop, size } = refToProps.current
+            onResizeStop && onResizeStop(size, resizeDirection, event)
             setIsResizing(false)
           },
           {
@@ -338,9 +341,9 @@ export const useResizer = (
     )
   }, [isResizing, memoizedHandler, refToProps])
 
-  const handlePropsMap = useMemo(
+  const resizeHandlesProps = useMemo(
     () =>
-      allowedResizeDirections.reduce<HandlePropsMap>(
+      allowedResizeDirections.reduce<ResizeHandlePropsMap>(
         (acc, direction) => {
           return {
             ...acc,
@@ -349,10 +352,10 @@ export const useResizer = (
             }
           }
         },
-        {} as UseResizerReturnValue
+        {} as ResizeHandlePropsMap
       ),
     [createPointerDownHandler]
   )
 
-  return { ...handlePropsMap, isResizing }
+  return { resizeHandlesProps, isResizing }
 }
