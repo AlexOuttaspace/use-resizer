@@ -293,7 +293,8 @@ export const useResizer = (
             displaysmentVector,
             rotation
           )
-
+          
+          // TODO: all reducers should have the same signature so we can join them using compose
           const newSize = sizeReducer(size, {
             displaysmentVector: transformedVector,
             resizeDirection
